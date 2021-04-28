@@ -109,6 +109,7 @@ class RPGFarm {
         }
     ];
     constructor( container ) {
+
         this.container = container;
         this.state = 'init';
         this.startLoad().then(() => {
@@ -143,6 +144,57 @@ class RPGFarm {
 
     loadStartMenu() {
         this.state = 'menu';
+        this.container.classList.add('menu');
+
+        let startButton = document.createElement('div');
+        startButton.classList.add('button');
+        startButton.classList.add('button-start');
+        startButton.innerHTML = 'Start New Game';
+        this.container.appendChild( startButton );
+
+        let continueButton = document.createElement('div');
+        continueButton.classList.add('button');
+        continueButton.classList.add('button-continue');
+        continueButton.innerHTML = 'Continue Game';
+        this.container.appendChild( continueButton );
+
+        let versionText = document.createElement('div');
+        versionText.classList.add('version');
+        versionText.innerHTML = 'Version ' + version;
+        this.container.appendChild( versionText );
+
+        startButton.addEventListener('click', () => {
+            this.container.classList.remove('menu');
+            startButton.remove();
+            continueButton.remove();
+            versionText.remove();
+
+            localStorage.setItem('xp',0);
+            localStorage.setItem('level',1);
+            localStorage.setItem('coins',0);
+            localStorage.setItem('inventory','[]');
+
+            this.startGame();
+        });
+
+        continueButton.addEventListener('click', () => {
+            this.container.classList.remove('menu');
+            startButton.remove();
+            continueButton.remove();
+            versionText.remove();
+            this.loadGame();
+        });
+
+    }
+
+    loadGame() {
+        this.xpCounter = localStorage.getItem('xp') ? parseInt(localStorage.getItem('xp')) : 0;
+        this.heroLevel = localStorage.getItem('level') ? parseInt(localStorage.getItem('level')) : 1;
+        this.coinCounter = localStorage.getItem('coins') ? parseInt(localStorage.getItem('coins')) : 0;
+
+        if ( localStorage.getItem('inventory') )
+            this.inventory = JSON.parse(localStorage.getItem('inventory'));
+
         this.startGame();
     }
 
@@ -175,7 +227,6 @@ class RPGFarm {
         });
 
         this.loadScreen('home').then(() => {
-            this.state = 'game';
             this.loadUi();
         });
         
@@ -188,17 +239,20 @@ class RPGFarm {
 
         this.uiLevel = document.createElement('div');
         this.uiLevel.id = 'ui-level';
+        this.uiLevel.innerHTML = 'Level '+this.heroLevel;
         this.uiLayer.appendChild( this.uiLevel );
 
         this.uiCoins = document.createElement('div');
         this.uiCoins.id = 'ui-coins';
-        this.uiCoins.innerHTML = '0 coins';
+        this.uiCoins.innerHTML = this.coinCounter+' coins';
         this.uiLayer.appendChild( this.uiCoins );
 
         this.container.appendChild( this.uiLayer );
     }
 
     loadScreen( screenName ) {
+        this.state = 'loading';
+        console.log('load screen ' + screenName);
         return new Promise((resolve) => {
 
             let previousScreen = null;
@@ -207,12 +261,14 @@ class RPGFarm {
 
                 previousScreen = this.currentScreen.name;
 
+                console.log('remove hero');
                 this.hero.remove();
                 this.hero = null;
 
                 if ( this.currentScreen.events ) {
                     this.currentScreen.events.forEach((e) => {
-                        e.element.remove();
+                        if ( e.element )
+                            e.element.remove();
                     });
                 }
                 this.currentScreen = null;
@@ -229,6 +285,10 @@ class RPGFarm {
             this.container.classList.add('screen-'+this.currentScreen.name);
 
             this.currentScreen.events.forEach( (e) => {
+
+                if ( e.type == 'item' && this.inventory.indexOf(e.name) > -1 )
+                    return;
+
                 let ev = this.createGameObject();
                 ev.classList.add( e.type );
                 this.positionGameObject(ev, e.position.x, e.position.y);
@@ -281,17 +341,39 @@ class RPGFarm {
 
             }
 
+            if ( screenName == 'home' ) {
+
+                if ( this.inventory.indexOf('cat') > -1 ) {
+                    let cat = this.createGameObject();
+                    cat.classList.add('item');
+                    cat.classList.add('item-cat');
+                    this.positionGameObject(cat, 6, 1);
+                    this.currentScreen.events.push({
+                        type: 'dialog',
+                        text: 'Nyah',
+                        element: cat,
+                        position: {x:6,y:1}
+                    });
+                }
+
+            }
+
             resolve();
-            //this.displayToast(screenName);
+            this.state = 'game';
         });
     }
 
     checkColision() {
+
+        if ( this.state != 'game' )
+            return;
+
         this.currentScreen.events.forEach( (e) => {
             if ( e.position.x == this.heroPosition.x && e.position.y == this.heroPosition.y ) {
 
                 switch ( e.type ) {
                     case 'teleport':
+                        console.log('collide with teleport to ' + e.target);
                         this.loadScreen( e.target );
                         break;
                     case 'ennemy':
@@ -299,9 +381,9 @@ class RPGFarm {
                             this.fight( e )
                         break;
                     case 'item':
-                        if ( e.price <= this.coinCounter )
+                        if ( e.price <= this.coinCounter && this.inventory.indexOf(e.name) == -1 )
                             this.buy( e );
-                        else
+                        else if ( this.inventory.indexOf(e.name) == -1 )
                             this.displayToast( 'The '+e.name+' costs ' + e.price );
                         break;
                     case 'dialog':
@@ -330,8 +412,11 @@ class RPGFarm {
 
     buy( e ) {
         this.coinCounter -= e.price;
+        localStorage.setItem('coins', this.coinCounter);
         this.uiCoins.innerHTML = this.coinCounter + ' coins';
-        this.inventory.push( e );
+        this.inventory.push( e.name );
+        localStorage.setItem('inventory', JSON.stringify(this.inventory));
+        e.element.remove();
     }
 
     fight( e ) {
@@ -340,6 +425,7 @@ class RPGFarm {
         e.element.classList.add('dead');
 
         this.coinCounter += e.coins;
+        localStorage.setItem('coins', this.coinCounter);
         this.uiCoins.innerHTML = this.coinCounter + ' coins';
 
         this.xpCounter += e.xp;

@@ -128,3 +128,40 @@
     background-image: url('../img/wolf.png');
     background-color: initial;
 }
+
+.menu {
+    background-image: url('../img/menu.png');
+    background-position: center;
+    background-size: contain;
+    cursor: default !important;
+}
+
+.menu .button {
+    border: 1px solid red;
+    color: red;
+    text-align: center;
+    width: 30vh;
+    height: 4vh;
+    cursor: pointer;
+    left: 25vh;
+    position: absolute;
+}
+
+.menu .button-start {
+    top: 45vh;
+}
+
+.menu .button-continue {
+    top: 55vh;
+}
+
+.menu .button:hover {
+    border: 1px solid green;
+}
+
+.version {
+    color: red;
+    position: absolute;
+    right: 5px;
+    bottom: 5px;
+}
